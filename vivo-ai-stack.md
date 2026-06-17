@@ -12,10 +12,44 @@
 **Snapdragon X Elite X1E78100** — 45 TOPS NPU (Hexagon)
 - QAIRT SDK 2.45.40.260406 ✅
 - Foundry Local v0.8.119 (Microsoft Store UWP) ✅
-- NPU ONNX modellek: bge-m3, qwen3-embedding-0.6b ✅
 - **NPU embedding MŰKÖDIK** (QNNExecutionProvider) ✅
-- **Foundry Local NPU modellek**: 36 model catalog, de nincs letöltve (catalog hiba)
-- **GenieAPI**: modellek hiányoznak (E:\models\genie\ nem létezik)
+- **Foundry Local NPU modellek**: 3 NPU modell telepítve D:-n, cache feltöltés szükséges
+- **GenieAPI**: modellek D:\models\genie\ mappában ✅ (config javítás szükséges)
+
+## D: Meghajtó Modell Térkép
+
+### Foundry Local NPU (D:\models\Foundry\Microsoft\)
+| Modell | Meret | Device |
+|:---|:---|:---|
+| deepseek-r1-distill-qwen-7b-qnn-npu-2 | 3.1GB | NPU |
+| qwen2.5-1.5b-instruct-qnn-npu-2 | 0.6GB | NPU |
+| qwen2.5-7b-instruct-qnn-npu-2 | 3.0GB | NPU |
+
+### Genie NPU (D:\models\genie\)
+| Modell | Meret | Device |
+|:---|:---|:---|
+| Llama3.2-3B | 1.5GB | NPU |
+| qwen3_4b-genie-w4a16 | 4.0GB | NPU |
+| qwen3_4b_instruct_2507-genie-w4a16 | 4.0GB | NPU |
+
+### GGUF Modellek (D:\models\)
+| Modell | Meret | Format |
+|:---|:---|:---|
+| Qwen3-VL-8B-Instruct (Q4_K_M) | ~5GB | GGUF |
+| gemma-4-E4B-it (Q4_K_M) | ~3GB | GGUF |
+| Carnice-Qwen3.6-MoE-35B-A3B | ~20GB | GGUF |
+| Qwen3.6-27B-MTP | ~15GB | GGUF |
+| Qwen3.5-4B-UD | ~3GB | GGUF |
+| Qwen3-8B-UD-Q8_K_XL | ~8GB | GGUF |
+
+### Embedding/Reranker
+| Modell | Hely | Format |
+|:---|:---|:---|
+| bge-m3 | D:\hf_cache\ + C:\AI\npu\models\ | safetensors + ONNX |
+| all-MiniLM-L6-v2 | D:\hf_cache\ | ONNX + safetensors |
+| Qwen3-Embedding-0.6B | D:\hf_cache\ + C:\AI\npu\models\ | safetensors + ONNX |
+
+**ÖSSZESEN ~80GB+ modell a D: meghajtón!**
 
 
 
