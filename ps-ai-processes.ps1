@@ -1,0 +1,1 @@
+Get-Process | Where-Object {$_.ProcessName -match 'ollama|litellm|open-webui|foundry|genie|node|python|uvicorn|fastapi'} | Select-Object ProcessName, Id, @{N='MemMB';E={[math]::Round($_.WorkingSet64/1MB,1)}} | Format-Table -AutoSize
