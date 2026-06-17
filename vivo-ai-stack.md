@@ -1,11 +1,23 @@
 # Vivo Laptop - Teljes AI Stack Térkép
 
-**Datum:** 2026-06-17
+**Datum:** 2026-06-17 (Fázis 0 audit után)
 **Gep:** vivo (Windows 11 ARM64 + WSL2 Ubuntu 24.04)
 **RAM:** 11GB (WSL2: 1.5Gi used / 9.8Gi free, 8Gi swap)
 **Disk:** /dev/sdd 1007G (948G free, 1% used)
 **WSL2 Uptime:** 1 day, 15:50
 **Docker (WSL2):** v29.5.3
+
+## NPU Fázis 0 Audit Eredménye
+
+**Snapdragon X Elite X1E78100** — 45 TOPS NPU (Hexagon)
+- QAIRT SDK 2.45.40.260406 ✅
+- Foundry Local v0.8.119 (Microsoft Store UWP) ✅
+- NPU ONNX modellek: bge-m3, qwen3-embedding-0.6b ✅
+- **NPU embedding MŰKÖDIK** (QNNExecutionProvider) ✅
+- **Foundry Local NPU modellek**: 36 model catalog, de nincs letöltve (catalog hiba)
+- **GenieAPI**: modellek hiányoznak (E:\models\genie\ nem létezik)
+
+
 
 ---
 
