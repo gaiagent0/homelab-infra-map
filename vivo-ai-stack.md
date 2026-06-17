@@ -11,20 +11,20 @@
 
 ## 1. Windows Native AI Alkalmazasok (C:\AI\apps\)
 
-| Mappa | Név | Funkcio | Status |
+| Mappa | Név | Funkció | Státusz |
 |:---|:---|:---|:---|
 | `ai-core` | AI Core | AI alaprendszer | ? |
-| `ai-stack-manager` | AI Stack Manager | Stack kezelo | ? |
+| `ai-stack-manager` | AI Stack Manager | Stack kezelő | ? |
 | `bifrost` | Bifrost | ? | ? |
 | `control-center` | Control Center | FastAPI dashboard | ? |
-| `Foundry` | Foundry Local | NPU model szerver | NEM FUT |
-| `genie-chat` | Genie Chat | NPU chat | NEM FUT |
-| `GenieAPIService_cpp` | GenieAPI (C++) | NPU API service | NEM FUT |
+| `Foundry` | Foundry Local | **NPU** model szerver (QNN HTP) | **NEM FUT** |
+| `genie-chat` | Genie Chat | NPU chat | **NEM FUT** |
+| `GenieAPIService_cpp` | GenieAPI (C++) | **NPU** API service | **NEM FUT** |
 | `hermes-foundry-npu` | Hermes Foundry NPU | NPU bridge | ? |
-| `litellm-win` | LiteLLM Proxy | Multi-provider proxy | **FUT** |
+| `litellm-win` | LiteLLM Proxy | Multi-provider proxy | **FUT (de leállítandó)** |
 | `llama-cpp` | llama.cpp | Local LLM inference | ? |
 | `local-vector-index` | Local Vector Index | Vector DB | ? |
-| `openwebui` | Open WebUI | Chat UI | NEM FUT |
+| `openwebui` | Open WebUI | Chat UI | **NEM FUT** |
 | `vibe-stack` | Vibe Stack | ? | ? |
 | `vivo-embed` | Vivo Embed | Embedding service | ? |
 

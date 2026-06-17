@@ -1,0 +1,1 @@
+Get-Process | Where-Object {$_.ProcessName -match 'ollama|litellm|node|python'} | Select-Object ProcessName, Id, @{N='MemMB';E={[math]::Round($_.WorkingSet64/1MB,1)}} | Sort MemMB -Descending | Select-Object -First 20 | Format-Table -AutoSize

@@ -164,3 +164,7 @@
 | n8n | http://10.10.40.35:5678 |
 | Qdrant | http://10.10.40.35:6333 |
 | SearXNG | http://10.10.40.35:8080 |
+| Langfuse | http://10.10.40.36:3001 |
+| ClickHouse | http://10.10.40.36:8123 |
+| Prometheus (CT306) | http://10.10.40.36:9090 |
+| Grafana (CT306) | http://10.10.40.36:3000 |

@@ -1,243 +1,328 @@
-# Egységes Fejlesztési Terv — Proxmox AI Cluster + Vivo AI Stack
+# Egységes Fejlesztési Terv — 4-Plane AI Architektúra
 
 **Datum:** 2026-06-17
-**Verzió:** 1.0 (egyesített v2 + valós állapot)
-**Cél:** Hatékony, jól dokumentált, skálázható AI infrastruktúra
+**Verzió:** 2.0 (4-plane architektúra)
+**Cél:** Hatékony, jól dokumentált, skálázható hibrid AI infrastruktúra
 
 ---
 
-## 1. Jelenlegi Állapot (Audit)
-
-### Proxmox Cluster
-- 3 node (pve-01, pve-02, pve-03)
-- 12 LXC container (mind running)
-- 31 Docker konténer (5 LXC-ben)
-- Nincs egységes dokumentáció, nincs CI/CD
-
-### Vivo Laptop
-- Windows natív: Ollama (nincs model), LiteLLM (20 model), 16 node folyamat
-- WSL2: Docker, 1 konténer (litellm — redundáns a Windows-sal)
-- C:\AI\apps\: 15 AI app mappa (több nem fut)
-
-### Problémák
-1. **Kettős LiteLLM:** Windows natív + WSL2 Docker — redundáns, erőforrás pazarlás
-2. **Nincs egységes monitoring:** Prometheus/Grafana csak Proxmox-on
-3. **Nincs CI/CD:** Manuális deploy, nincs automatizált tesztelés
-4. **Nincs backup stratégia:** PBS van, de nincs dokumentálva
-5. **AI app-ok nincsenek kategorizálva:** C:\AI\apps\ mappában 15 app, több nem fut
-6. **Nincs egységes dokumentáció:** Csak cluster-map.md és vivo-ai-stack.md
-
----
-
-## 2. Célarchitektúra
+## 1. Architektúra — 4 Plane + Cloud
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        VIVO LAPTOP                               │
-│  ┌─────────────────────────────────────────────────────────┐    │
-│  │ Windows Natív                                            │    │
-│  │  ├── Hermes Agent (AI orchestrator)                      │    │
-│  │  ├── Ollama (helyi modellek)                             │    │
-│  │  └── LiteLLM Proxy (multi-provider, 1 példány)          │    │
-│  └─────────────────────────────────────────────────────────┘    │
-│  ┌─────────────────────────────────────────────────────────┐    │
-│  │ WSL2 (Ubuntu 24.04)                                      │    │
-│  │  └── Docker (fejlesztői környezet, CI/CD agent)          │    │
-│  └─────────────────────────────────────────────────────────┘    │
-└─────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                         VIVO LAPTOP                                  │
+│                                                                      │
+│  ┌──────────────────────────────────────────────────────────────┐   │
+│  │ PLANE 1: WINDOWS — NPU Compute Node                          │   │
+│  │  ├── Foundry Local (QNN HTP backend)                         │   │
+│  │  ├── Ollama (CPU fallback modellek)                          │   │
+│  │  └── GenieAPI (Qwen3-4B, Llama3.2-3B NPU)                   │   │
+│  │  Csak inference. Nincs proxy, nincs agent.                   │   │
+│  └──────────────────────────────────────────────────────────────┘   │
+│                                                                      │
+│  ┌──────────────────────────────────────────────────────────────┐   │
+│  │ PLANE 2: WSL2 — AI Control Plane                             │   │
+│  │  ├── LiteLLM Proxy (multi-provider routing)                  │   │
+│  │  ├── LangGraph (agent orchestration)                         │   │
+│  │  ├── Hermes Agent (task delegation)                          │   │
+│  │  └── Agent Runtime (FastAPI + async workers)                 │   │
+│  │  Ez az agy. Routing, reasoning, tool execution.              │   │
+│  └──────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────┘
                               │
-                              │ SSH / API
+                              │ SSH / API / Docker network
                               ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                      PROXOX CLUSTER                              │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐             │
-│  │   pve-01    │  │   pve-02    │  │   pve-03    │             │
-│  │  Infra      │  │  Backup     │  │  AI/Media   │             │
-│  │  - NPM      │  │  - PBS      │  │  - Media    │             │
-│  │  - Vault    │  │  - Grafana  │  │  - AI Infra │             │
-│  │  - MCP      │  │  - Prometheus│  │  - Dev Env  │             │
-│  │  - LibreNMS │  │  - Rclone   │  │  - Ollama   │             │
-│  └─────────────┘  └─────────────┘  └─────────────┘             │
-└─────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                      PROXMOX CLUSTER                                 │
+│                                                                      │
+│  ┌──────────────────────────────────────────────────────────────┐   │
+│  │ PLANE 3: CT305 — Knowledge Plane                             │   │
+│  │  ├── PostgreSQL (litellm DB + app DB)                        │   │
+│  │  ├── Qdrant (vektor adatbázis, RAG)                          │   │
+│  │  ├── Mem0 (AI memory layer)                                  │   │
+│  │  ├── SearXNG (metakereső)                                    │   │
+│  │  └── MCP Server (tool registry)                              │   │
+│  │  Adattár. Tartalom, kontextus, emlékezet.                    │   │
+│  └──────────────────────────────────────────────────────────────┘   │
+│                                                                      │
+│  ┌──────────────────────────────────────────────────────────────┐   │
+│  │ PLANE 4: CT306 — Observability Plane (ÚJ LXC)                │   │
+│  │  ├── Langfuse (LLM tracing, cost tracking)                   │   │
+│  │  ├── ClickHouse (Langfuse adatbázis)                         │   │
+│  │  ├── Prometheus (metrikák)                                   │   │
+│  │  └── Grafana (dashboard-ok)                                  │   │
+│  │  Megfigyelés. Trace, log, metric, alert.                     │   │
+│  └──────────────────────────────────────────────────────────────┘   │
+│                                                                      │
+│  ┌──────────────────────────────────────────────────────────────┐   │
+│  │ EXISTING: CT208 — Monitoring (megmarad)                      │   │
+│  │  ├── Prometheus (node-level metrics)                         │   │
+│  │  └── Grafana (infrastructure dashboard)                      │   │
+│  │  Megjegyzés: CT208 node-level, CT306 LLM-level observability │   │
+│  └──────────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────────┘
+                              │
+                              │ HTTPS / API
+                              ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                      CLOUD — Reasoning Plane                         │
+│  ├── OpenRouter (owl-alpha, deepseek, kimi, gemma — free tier)      │
+│  ├── Claude API (Anthropic)                                         │
+│  ├── GPT API (OpenAI)                                               │
+│  └── Gemini API (Google)                                            │
+│  Neh modellek, amik túl nagyok lokális futtatáshoz.                 │
+└─────────────────────────────────────────────────────────────────────┘
 ```
+
+---
+
+## 2. Jelenlegi Állapot vs Cél
+
+### Jelenlegi (Audit 2026-06-17)
+
+| Komponens | Hol | Állapot | Probléma |
+|:---|:---|:---|:---|
+| LiteLLM | Windows natív + WSL2 Docker | Kettős, redundáns | Windows instabil |
+| Ollama | Windows natív + WSL2 | Fut, nincs model | Nincs NPU használat |
+| Foundry Local | Windows | NEM FUT | NPU kihasználatlan |
+| GenieAPI | Windows | NEM FUT | NPU kihasználatlan |
+| PostgreSQL | CT305 (Docker) | Fut | OK |
+| Qdrant | CT305 (Docker) | Fut | OK |
+| Mem0 | CT305 (Docker) | Fut | OK |
+| SearXNG | CT305 (Docker) | Fut | OK |
+| Langfuse | **HIÁNYZIK** | - | CT306-ra tervezve |
+| ClickHouse | **HIÁNYZIK** | - | CT306-ra tervezve |
+| Prometheus | CT208 (Docker) | Fut | OK |
+| Grafana | CT208 (Docker) | Fut | OK |
+| Hermes Agent | Windows | Fut | OK |
+| LangGraph | **HIÁNYZIK** | - | WSL2-re tervezve |
+| Agent Runtime | **HIÁNYZIK** | - | WSL2-re tervezve |
+| MCP Server | CT150 (LXC) | Fut | OK |
+
+### Célállapot
+
+| Komponens | Hol | Mi változik |
+|:---|:---|:---|
+| LiteLLM | **WSL2 Docker** | Windows natív eltávolítása |
+| Ollama | **Windows natív** | NPU modellek letöltése |
+| Foundry Local | **Windows natív** | Indítás, NPU backend |
+| GenieAPI | **Windows natív** | Indítás, NPU modellek |
+| Langfuse | **CT306 (új LXC)** | Telepítés + konfiguráció |
+| ClickHouse | **CT306 (új LXC)** | Telepítés (Langfuse DB) |
+| LangGraph | **WSL2 Docker** | Telepítés + konfiguráció |
+| Agent Runtime | **WSL2 Docker** | FastAPI + async workers |
+| MCP Server | CT150 + CT305 | Bővítés |
 
 ---
 
 ## 3. Fejlesztési Fázisok
 
 ### Fázis 0: Alapok (1-2 nap)
-**Cél:** Jelenlegi állapot stabilizálása, dokumentáció javítása
+**Cél:** Jelenlegi állapot stabilizálása
 
-- [ ] 0.1 GitHub repo tisztítása (cluster-map.md, vivo-ai-stack.md)
-- [ ] 0.2 WSL2 LiteLLM konténer eltávolítása (redundáns)
-- [ ] 0.3 C:\AI\apps\ mappa audit — mi fut, mi nem, mi kell
-- [ ] 0.4 Egységes dokumentációs struktúra létrehozása
+- [ ] 0.1 GitHub repo tisztítása (cluster-map.md, vivo-ai-stack.md frissítés)
+- [ ] 0.2 C:\AI\apps\ audit — mi fut, mi nem, mi kell
+- [ ] 0.3 Windows natív LiteLLM leállítása (WSL2 marad)
+- [ ] 0.4 WSL2 LiteLLM konfiguráció ellenőrzés (Proxmox PostgreSQL-re mutat)
 
-### Fázis 1: Egységes LiteLLM (2-3 nap)
-**Cél:** Egyetlen LiteLLM proxy, minden szolgáltatás felé
+### Fázis 1: NPU Compute Node (2-3 nap)
+**Cél:** Windows NPU inference képesség
 
-- [ ] 1.1 LiteLLM config optimalizálás (Windows natív)
-- [ ] 1.2 WSL2 LiteLLM konténer leállítása és törlése
-- [ ] 1.3 Proxmox CT305 (ai-infra) LiteLLM integráció
-- [ ] 1.4 Fallback chain tesztelés
+- [ ] 1.1 Foundry Local indítás (start-foundry.ps1)
+- [ ] 1.2 NPU modellek letöltése (Qwen2.5-7B, DeepSeek-R1-7B)
+- [ ] 1.3 GenieAPI indítás (Qwen3-4B, Llama3.2-3B)
+- [ ] 1.4 Ollama NPU modellek letölltése (phi4-mini, qwen2.5:7b)
+- [ ] 1.5 LiteLLM config frissítés (NPU modellek hozzáadása)
+- [ ] 1.6 Fallback chain tesztelés (NPU → CPU → Cloud)
 
-### Fázis 2: Monitoring & Observability (3-5 nap)
-**Cél:** Teljes körű monitoring minden node-on
+### Fázis 2: AI Control Plane (WSL2) (3-5 nap)
+**Cél:** WSL2-ben futó agent orchestration
 
-- [ ] 2.1 Prometheus + Grafana bővítése (összes node)
-- [ ] 2.2 Node exporter telepítése minden LXC-re
-- [ ] 2.3 Docker monitoring (cadvisor) bővítése
-- [ ] 2.4 Alertmanager konfigurálás
-- [ ] 2.5 Grafana dashboard-ok létrehozása
+- [ ] 2.1 LiteLLM config optimalizálás (WSL2)
+- [ ] 2.2 LangGraph telepítés (WSL2 Docker)
+- [ ] 2.3 Agent Runtime (FastAPI) telepítés
+- [ ] 2.4 Hermes Agent integráció (delegate_task → WSL2 agents)
+- [ ] 2.5 MCP tool registry konfigurálás
 
-### Fázis 3: Backup & Disaster Recovery (3-5 nap)
-**Cél:** Automatizált, tesztelt backup stratégia
+### Fázis 3: Knowledge Plane (CT305) (2-3 nap)
+**Cél:** Adattár optimalizálás
 
-- [ ] 3.1 PBS backup szabályok definiálása
-- [ ] 3.2 Rclone sync konfigurálás
-- [ ] 3.3 ZFS snapshot automatizálás
-- [ ] 3.4 Restore tesztek végrehajtása
-- [ ] 3.5 Backup dokumentáció
+- [ ] 3.1 PostgreSQL optimalizálás (litellm + app DB)
+- [ ] 3.2 Qdrant collection design + indexelés
+- [ ] 3.3 Mem0 konfiguráció (Proxmox PostgreSQL)
+- [ ] 3.4 SearXNG konfigurálás (engine-ok, SSL)
+- [ ] 3.5 MCP Server bővítés (CT305)
 
-### Fázis 4: CI/CD Pipeline (5-7 nap)
-**Cél:** Automatizált deploy és tesztelés
+### Fázis 4: Observability Plane (CT306 — új LXC) (3-5 nap)
+**Cél:** LLM-level monitoring
 
-- [ ] 4.1 Gitea CI/CD beállítása (CT302)
-- [ ] 4.2 GitHub Actions → Proxmox deploy pipeline
-- [ ] 4.3 Automatizált healthcheck-ek
-- [ ] 4.4 Rollback mechanizmus
+- [ ] 4.1 CT306 LXC létrehozás (pve-03, 2c/4GB)
+- [ ] 4.2 ClickHouse telepítés (Langfuse DB)
+- [ ] 4.3 Langfuse telepítés + konfiguráció
+- [ ] 4.4 Langfuse → LiteLLM integráció (OTLP)
+- [ ] 4.5 Grafana dashboard-ok (LLM metrics)
+- [ ] 4.6 Alertmanager szabályok (token usage, latency)
 
-### Fázis 5: AI Stack Optimalizálás (5-7 nap)
-**Cél:** Hatékony AI szolgáltatások
+### Fázis 5: Backup & DR (2-3 nap)
+**Cél:** Automatizált backup
 
-- [ ] 5.1 Ollama modellek letöltése (Proxmox CT304)
-- [ ] 5.2 Qdrant collection optimalizálás (CT305)
-- [ ] 5.3 n8n workflow-ok létrehozása
-- [ ] 5.4 Mem0 integráció
-- [ ] 5.5 SearXNG konfigurálás
+- [ ] 5.1 PBS backup szabályok (CT305, CT306)
+- [ ] 5.2 Rclone sync konfigurálás
+- [ ] 5.3 ZFS snapshot automatizálás
+- [ ] 5.4 Restore tesztek
 
 ### Fázis 6: Biztonsági Audit (3-5 nap)
-**Cél:** Teljes biztonsági hardening
+**Cél:** Teljes hardening
 
-- [ ] 6.1 Security audit végrehajtása
-- [ ] 6.2 Container hardening
-- [ ] 6.3 Network segmentation
-- [ ] 6.4 Secret management
-- [ ] 6.5 Penetration testing
+- [ ] 6.1 Container security audit
+- [ ] 6.2 Network segmentation
+- [ ] 6.3 Secret management
+- [ ] 6.4 Langfuse PII filter
 
 ---
 
-## 4. Kivitelezési Workflow
+## 4. Erőforrás Allokáció
 
-### 4.1 Általános szabályok
+### Vivo Laptop
 
-1. **Minden változtatás előtt:** ZFS snapshot + PBS backup
-2. **Minden deploy után:** Healthcheck futtatása
-3. **Minden fázis után:** Dokumentáció frissítése
-4. **Hibajavítás:** Rollback.sh futtatás, root cause analysis
+| Komponens | CPU | RAM | Storage | Hol |
+|:---|:---|:---|:---|:---|
+| Foundry Local (NPU) | 2 core | 2GB | 20GB | Windows |
+| Ollama (CPU) | 2 core | 4GB | 30GB | Windows |
+| GenieAPI (NPU) | 1 core | 1GB | 10GB | Windows |
+| LiteLLM Proxy | 1 core | 2GB | 5GB | WSL2 Docker |
+| LangGraph | 1 core | 2GB | 5GB | WSL2 Docker |
+| Agent Runtime | 1 core | 2GB | 5GB | WSL2 Docker |
+| Hermes Agent | 1 core | 2GB | 5GB | Windows |
 
-### 4.2 Deploy Pipeline
+### Proxmox CT305 (ai-infra) — 4c/6GB
+
+| Konténer | CPU limit | RAM limit | Storage |
+|:---|:---|:---|:---|
+| PostgreSQL | 1 core | 2GB | 20GB |
+| Qdrant | 1 core | 2GB | 10GB |
+| Mem0 | 0.5 core | 1GB | 5GB |
+| SearXNG | 0.5 core | 0.5GB | 5GB |
+| MCP Server | 0.5 core | 0.5GB | 5GB |
+
+### Proxmox CT306 (observability) — 2c/4GB (ÚJ)
+
+| Konténer | CPU limit | RAM limit | Storage |
+|:---|:---|:---|:---|
+| ClickHouse | 1 core | 2GB | 20GB |
+| Langfuse | 0.5 core | 1GB | 5GB |
+| Prometheus | 0.5 core | 0.5GB | 10GB |
+| Grafana | 0.5 core | 0.5GB | 5GB |
+
+---
+
+## 5. Kivitelezési Workflow
+
+### 5.1 Deploy Pipeline
 
 ```
 Fejlesztés (vivo) → Gitea (CT302) → CI/CD → Proxmox (pve-03)
      │                  │                │           │
-     │                  │                │           │
   Kód írás         Git push        Build+Test     Deploy
-  Lokális teszt    Code review     Image build    Healthcheck
+  Lokálteszt       Code review     Image build    Healthcheck
                                    Security scan  Rollback (ha kell)
 ```
 
-### 4.3 Kommunikáció
+### 5.2 LiteLLM Routing
 
-- **Hermes Agent:** Orchestrator, feladatok kiosztása
-- **Gitea (CT302):** Kódtár, CI/CD, issue tracking
-- **Grafana (CT208):** Monitoring, alerting
-- **n8n (CT305):** Workflow automatizálás
+```
+User Request
+     │
+     ▼
+┌─────────────────────────────────────────────────────────────┐
+│ WSL2 LiteLLM Proxy                                          │
+│                                                              │
+│  Routing strategy: latency-based-routing                     │
+│                                                              │
+│  Local NPU (Windows):                                        │
+│    foundry-npu-deepseek (QNN, 180s timeout)                  │
+│    foundry-npu (Qwen2.5-7B QNN, 180s)                       │
+│    genie-npu (Qwen3-4B, 60s)                                │
+│    genie-npu-llama (Llama3.2-3B, 60s)                       │
+│                                                              │
+│  Local CPU (Windows):                                        │
+│    ollama-win (qwen2.5:14b, 180s)                           │
+│    ollama-fast (qwen2.5:7b, 60s)                            │
+│    lm-studio (local-model, 120s)                            │
+│    llama-cpp (qwen3-8b, 120s)                               │
+│                                                              │
+│  Cloud (Reasoning Plane):                                    │
+│    openrouter-deepseek (free)                                │
+│    openrouter-qwen (free)                                    │
+│    openrouter-kimi (free)                                    │
+│    openrouter-gemma (free)                                   │
+│    hermes-groq (fast)                                        │
+│    hermes-gemini                                             │
+│    hermes-coder                                              │
+│                                                              │
+│  Fallback chain:                                             │
+│    NPU → CPU → Cloud free → Cloud paid                      │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 5.3 Agent Execution Flow
+
+```
+User Request
+     │
+     ▼
+┌─────────────────────────────────────────────────────────────┐
+│ Hermes Agent (Windows)                                       │
+│  → delegate_task → WSL2 Agent Runtime                       │
+└─────────────────────────────────────────────────────────────┘
+     │
+     ▼
+┌─────────────────────────────────────────────────────────────┐
+│ WSL2 Agent Runtime (LangGraph)                               │
+│                                                              │
+│  START → Planner → Retriever → Reasoner →                   │
+│  Human Review (kritikus) → Tool Execution →                  │
+│  Validator → Reporter → END                                 │
+│                                                              │
+│  Retriever: Qdrant (CT305) + SearXNG (CT305)               │
+│  Reasoner: LiteLLM (WSL2) → NPU/CPU/Cloud                  │
+│  Tools: MCP Server (CT150 + CT305)                          │
+│  Memory: Mem0 (CT305)                                       │
+│  Tracing: Langfuse (CT306)                                  │
+└─────────────────────────────────────────────────────────────┘
+```
 
 ---
 
-## 5. Erőforrás Allokáció
+## 6. Siker Kritériumok
 
-### Proxmox Node-ok
-
-| Node | Szerep | CPU | RAM | Storage |
-|:---|:---|:---|:---|:---|
-| pve-01 | Infra | 2 core | 4GB | 50GB |
-| pve-02 | Backup/Monitoring | 2 core | 4GB | 100GB |
-| pve-03 | AI/Media | 4 core | 8GB | 200GB |
-
-### Vivo Laptop
-
-| Szerep | CPU | RAM | Storage |
-|:---|:---|:---|:---|
-| Hermes Agent | 2 core | 4GB | 50GB |
-| LiteLLM Proxy | 1 core | 2GB | 10GB |
-| Ollama | 2 core | 4GB | 50GB |
-| WSL2 Docker | 2 core | 4GB | 50GB |
-
----
-
-## 6. Üzemeltetési Dokumentáció
-
-### 6.1 Mappastruktúra
-
-```
-homelab-docs/
-├── README.md                    # Főoldal, gyors referencia
-├── cluster-map.md               # Proxmox cluster térkép
-├── vivo-ai-stack.md             # Vivo laptop AI stack
-├── architecture/                # Architektúra diagramok
-│   ├── overview.md
-│   ├── network.md
-│   └── data-flow.md
-├── runbooks/                    # Üzemeltetési útmutatók
-│   ├── deploy.md
-│   ├── backup.md
-│   ├── monitoring.md
-│   └── troubleshooting.md
-├── security/                    # Biztonsági dokumentáció
-│   ├── audit.md
-│   ├── hardening.md
-│   └── incident-response.md
-└── development/                 # Fejlesztési dokumentáció
-    ├── roadmap.md
-    ├── changelog.md
-    └── testing.md
-```
-
-### 6.2 Dokumentációs szabályok
-
-- Minden új szolgáltatás: RUNBOOK.md a service mappájában
-- Minden hiba: TROUBLESHOOTING.md frissítése
-- Minden deploy: CHANGELOG.md frissítése
-- Hetente: README.md review
+- [ ] NPU inference működik (Foundry Local + GenieAPI)
+- [ ] Ollama CPU modellek letöltve és működnek
+- [ ] LiteLLM WSL2-ben stabil, NPU → CPU → Cloud fallback működik
+- [ ] LangGraph agent-ek futnak WSL2-ben
+- [ ] Langfuse tracing működik (CT306)
+- [ ] Qdrant + Mem0 integrálva az agent-ekbe
+- [ ] Backup automatizálva (CT305 + CT306)
+- [ ] Biztonsági audit kész
 
 ---
 
 ## 7. Következő lépések
 
-### Azonnali (ma)
-1. GitHub repo tisztítása
-2. WSL2 LiteLLM eltávolítása
+### Azonnali (Fázis 0)
+1. GitHub repo frissítés
+2. Windows natív LiteLLM leállítása
 3. C:\AI\apps\ audit
 
-### Ezen a héten
-4. Monitoring bővítése
-5. Backup stratégia dokumentálása
-6. Security audit
+### Fázis 1 (NPU)
+4. Foundry Local + NPU modellek
+5. GenieAPI indítás
+6. Ollama CPU modellek
 
-### Következő hónap
-7. CI/CD pipeline
-8. AI stack optimalizálás
-9. Teljes biztonsági hardening
+### Fázis 2 (Control Plane)
+7. LangGraph + Agent Runtime WSL2-ben
+8. Hermes integráció
 
----
-
-## 8. Siker Kritériumok
-
-- [ ] Egyetlen LiteLLM proxy, minden szolgáltatás felé
-- [ ] Teljes körű monitoring (összes node, összes konténer)
-- [ ] Automatizált backup, tesztelt restore
-- [ ] CI/CD pipeline működő
-- [ ] Biztonsági audit kész, kritikus hibák javítva
-- [ ] Teljes dokumentáció naprakész
+### Fázis 4 (Observability)
+9. CT306 LXC létrehozás
+10. Langfuse + ClickHouse telepítés
