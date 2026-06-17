@@ -1,6 +1,6 @@
 # Vivo Laptop - Teljes AI Stack Térkép
 
-**Datum:** 2026-06-17 (Fázis 0 audit után)
+**Datum:** 2026-06-17 (Fázis 1 után)
 **Gep:** vivo (Windows 11 ARM64 + WSL2 Ubuntu 24.04)
 **RAM:** 11GB (WSL2: 1.5Gi used / 9.8Gi free, 8Gi swap)
 **Disk:** /dev/sdd 1007G (948G free, 1% used)
